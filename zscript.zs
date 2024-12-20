@@ -69,7 +69,7 @@ class NMH_HitscanReplacer : Actor
 		if (!collision) return;
 		let hittype = collision.results.HitType;
 
-		String report;
+		/*String report;
 		switch (hittype)
 		{
 			case TRACE_HitActor:
@@ -90,7 +90,7 @@ class NMH_HitscanReplacer : Actor
 				report = "something else";
 				break;
 		}
-		Console.Printf("Hit \cd"..report);
+		Console.Printf("Hit \cd"..report);*/
 
 		if (hitType == TRACE_HitNone)
 		{
