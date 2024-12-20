@@ -54,7 +54,7 @@ class NMH_HitscanReplacer : Actor
 
 	void NMH_SpawnHitscanPuff()
 	{
-		let puff = Spawn(nmh_pufftype, pos, ALLOW_REPLACE);
+		let puff = SpawnPuff(nmh_pufftype, pos, target.angle, target.angle + 180, GetDefaultByType(nmh_pufftype).vel.z, PF_HITTHING);
 		if (puff)
 		{
 			if (bHITTRACER) puff.tracer = tracer;
