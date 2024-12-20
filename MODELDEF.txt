@@ -1,0 +1,10 @@
+Model NMH_HitscanReplacer
+{
+	Path "models/btracer"
+	Model 0 "btracer.obj"
+	DontCullBackfaces
+	UseActorPitch
+	UseActorRoll
+
+	FrameIndex AMRK A 0 0
+}

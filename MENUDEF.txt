@@ -1,0 +1,17 @@
+AddOptionMenu "OptionsMenu"
+{
+	Submenu "No More Hitscans", "NMH_Settings"
+}
+
+AddOptionMenu "OptionsMenuSimple"
+{
+	Submenu "No More Hitscans", "NMH_Settings"
+}
+
+OptionMenu "NMH_Settings"
+{
+	Title "No More Hitcans - Settings"
+
+	Option "Mod enabled", "nmh_enabled", "OnOff"
+	Slider "Replacement projectile speed", "nmh_projspeed", 8, 800,  8, 0
+}

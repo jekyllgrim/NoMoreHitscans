@@ -1,2 +1,3 @@
 # NoMoreHitscans
- A GZDoom minimod that replaces monster hitscan attacks with projectiles
+
+ A GZDoom minimod that universally replaces monster hitscan attacks with projectiles (with adjustable speed).

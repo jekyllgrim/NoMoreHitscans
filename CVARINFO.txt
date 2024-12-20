@@ -1,0 +1,2 @@
+server bool nmh_enabled = true;
+server float nmh_projspeed = 80.0;

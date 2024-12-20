@@ -1,0 +1,4 @@
+Gameinfo
+{
+	AddEventHandlers = "NMH_HitscanHandler"
+}
