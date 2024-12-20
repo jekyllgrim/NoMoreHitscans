@@ -136,6 +136,7 @@ class NMH_HitscanReplacer : Actor
 	override void PostBeginPlay()
 	{
 		Super.PostBeginPlay();
+		alpha = nmh_alpha;
 		vel = vel.Unit() * nmh_projspeed;
 		A_FaceMovementDirection();
 		HandleCollision();
