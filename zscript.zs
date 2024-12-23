@@ -153,7 +153,7 @@ class NMH_HitscanReplacer : Actor
 			{
 				victim.SpawnBlood(puff? puff.pos : pos, pAngles.x + 180, dealtDamage);
 				victim.TraceBleedAngle(dealtDamage, pAngles.x, pAngles.y);
-				if (puff)
+				if (puff && !puff.bPUFFONACTORS)
 				{
 					puff.Destroy();
 				}
