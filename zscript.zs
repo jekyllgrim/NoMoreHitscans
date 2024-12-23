@@ -6,19 +6,19 @@ class NMH_HitscanHandler : EventHandler
 	{
 		if (!nmh_enabled) return false;
 		
-		if (e.thing && e.thing.bIsMonster && !e.thing.player)
+		if (e.thing && e.thing.bIsMonster && !e.thing.player && e.AttackDistance >= MISSILERANGE)
 		{
-			let proj = NMH_HitscanReplacer(e.thing.A_SpawnProjectile('NMH_HitscanReplacer',
-				angle: e.AttackAngle - e.thing.angle,
-				pitch: e.AttackPitch,
-				flags: CMF_AIMDIRECTION));
-			if (proj)
-			{
-				proj.nmh_damagefromhitscan = e.damage;
-				proj.nmh_pufftype = Actor.GetReplacement(e.AttackPuffType);
-				proj.damageType = e.damageType;
-			}
-			return true;
+			let hr = NMH_HitscanReplacer.FireReplacer(
+				shooter:		e.thing,
+				damage:			e.damage,
+				pufftype:		e.AttackPuffType,
+				damageType:		e.damageType,
+				spawnheight:	e.AttackZ,
+				angle:			e.AttackAngle - e.thing.angle,
+				pitch:			e.AttackPitch,
+				spawnofs_xy:	e.AttackOffsetSide
+			);
+			return hr != null;
 		}
 		return false;
 	}
@@ -29,6 +29,7 @@ class NMH_HitscanReplacer : Actor
 	//int nmh_projstyle;
 	int nmh_damagefromhitscan;
 	class<Actor> nmh_pufftype;
+	name shooterSpecies;
 
 	/*enum EProjStyles
 	{
@@ -49,18 +50,25 @@ class NMH_HitscanReplacer : Actor
 
 	int GetProjDamage()
 	{
-		return nmh_damagefromhitscan;
+		return ApplyDamageFactor(damageType, nmh_damagefromhitscan);
 	}
 
-	void NMH_SpawnHitscanPuff()
+	static NMH_HitscanReplacer FireReplacer(Actor shooter, int damage, class<Actor> pufftype, Name damageType, double spawnheight, double spawnofs_xy, double angle, double pitch)
 	{
-		let puff = SpawnPuff(nmh_pufftype, pos, target.angle, target.angle + 180, GetDefaultByType(nmh_pufftype).vel.z, PF_HITTHING);
-		if (puff)
+		if (!shooter) return null;
+		if (!spawnheight) spawnheight = 32;
+		let proj = NMH_HitscanReplacer(shooter.A_SpawnProjectile('NMH_HitscanReplacer',
+			spawnheight: spawnheight,
+			angle: angle,
+			pitch: pitch,
+			flags: CMF_AIMDIRECTION));
+		if (proj)
 		{
-			if (bHITTRACER) puff.tracer = tracer;
-			if (bHITMASTER) puff.master = master;
-			if (bHITTARGET || bPUFFGETSOWNER) puff.target = target;
+			proj.nmh_damagefromhitscan = damage;
+			proj.nmh_pufftype = pufftype;
+			proj.damageType = damageType;
 		}
+		return proj;
 	}
 
 	void HandleCollision()
@@ -97,22 +105,61 @@ class NMH_HitscanReplacer : Actor
 			return;
 		}
 
+		Vector2 pAngles = (self.angle, self.pitch);
 		A_Stop();
 		if (hitType == TRACE_HitActor && collision.projectileVictim)
 		{
-			let vic = collision.projectileVictim;
-			vic.DamageMobj(self, target? target : Actor(self), GetProjDamage(), damageType, DMG_INFLICTOR_IS_PUFF);
-			if (!vic.bNOBLOOD && !vic.bDORMANT)
+			let victim = collision.projectileVictim;
+			// Normally the shooter should always be there, but who knows:
+			Actor source = target? target : Actor(self);
+
+			// Get initial damage (modified by damage factor):
+			int dealtDamage = GetProjDamage();
+			//String dmgReportInfo = String.Format("Initial damage: \cd%d\c- (type: \cy%s\c-, dmg after factor: \cd%d\c-",nmh_damagefromhitscan, damagetype, dealtdamage);
+
+			// Attempt to spawn the puff:
+			int puffFlags = PF_HITTHING;
+			if (!victim.bNOBLOOD && !victim.bDORMANT)
 			{
-				SetStateLabel("XDeath");
+				puffFlags |= PF_HITTHINGBLEED;
 			}
-			else
+			let puff = SpawnPuff(nmh_pufftype,
+				pos: pos,
+				hitdir: pAngles.x,
+				particledir: pAngles.x + 180,
+				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				flags: puffFlags,
+				victim: victim
+			);
+			if (puff)
 			{
-				SetStateLabel("Death");
+				puff.A_Face(source);
+				// Set puff pointers, if applicable:
+				if (bHITTRACER) puff.tracer = victim;
+				if (bHITMASTER) puff.master = victim;
+				if (bHITTARGET) puff.target = victim;
+				if (bPUFFGETSOWNER) puff.target = target;
+				// Let the puff's DoSpecialDamage() modify the damage, if necessary:
+				dealtDamage = puff.DoSpecialDamage(victim, dealtDamage, damagetype);
+				//dmgReportInfo.AppendFormat("\c- dmg modified by puff \cd"..dealtDamage);
 			}
-			if (bHITTRACER) tracer = vic;
-			if (bHITMASTER) master = vic;
-			if (bHITTARGET) target = vic;
+
+			// Use the final damage value to deal the damage:
+			dealtDamage = victim.DamageMobj(puff? puff : Actor(self), source, dealtDamage, damageType, DMG_INFLICTOR_IS_PUFF);
+			//dmgReportInfo.AppendFormat("\c- final dmg dealt \cd"..dealtDamage);
+
+			// Spawn blood decals:
+			if (!victim.bNOBLOOD && !victim.bDORMANT)
+			{
+				victim.SpawnBlood(puff? puff.pos : pos, pAngles.x + 180, dealtDamage);
+				victim.TraceBleedAngle(dealtDamage, pAngles.x, pAngles.y);
+				if (puff)
+				{
+					puff.Destroy();
+				}
+			}
+			//Console.Printf(dmgReportInfo);
+			SetStateLabel("Death");
 			return;
 		}
 
@@ -125,9 +172,37 @@ class NMH_HitscanReplacer : Actor
 			}
 		case TRACE_HitCeiling:
 		case TRACE_HitFloor:
+			name decaltype;
+			let puff = SpawnPuff(nmh_pufftype,
+				pos: pos,
+				hitdir: pAngles.x,
+				particledir: pAngles.x + 180,
+				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				flags: 0
+			);
+			if (puff)
+			{
+				decaltype = puff.GetDecalName();
+			}
+			if (target && decaltype == 'none')
+			{
+				decaltype = target.GetDecalName();
+			}
+			//Console.Printf("Decal from puff: \cy%s\c-, from monster: \cy%s\c-, final: \dy%s\c-", puff.GetDecalName(), target.GetDecalName(), decaltype);
+			if (decaltype != 'none')
+			{
+				A_SprayDecal(decaltype, collision.results.distance, direction: collision.results.hitVector);
+			}
 			SetStateLabel("Death");
 			break;
 		case TRACE_HasHitSky:
+			SpawnPuff(nmh_pufftype,
+				pos: pos,
+				hitdir: pAngles.x,
+				particledir: pAngles.x + 180,
+				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				flags: PF_HITSKY
+			);
 			SetStateLabel("Null");
 			break;
 		}
@@ -169,17 +244,8 @@ class NMH_HitscanReplacer : Actor
 	Spawn:
 		AMRK A -1 bright;
 		stop;
-	XDeath:
-		TNT1 A 1
-		{
-			if (GetDefaultByType(nmh_pufftype).bPUFFONACTORS)
-			{
-				NMH_SpawnHitscanPuff();
-			}
-		}
-		stop;
 	Death:
-		TNT1 A 1 NMH_SpawnHitscanPuff();
+		TNT1 A 1;
 		stop;
 	}
 }
