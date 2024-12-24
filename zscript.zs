@@ -106,6 +106,20 @@ class NMH_HitscanReplacer : Actor
 		}
 
 		Vector2 pAngles = (self.angle, self.pitch);
+
+		let puffdefs = GetDefaultByType(nmh_pufftype);
+		double puffsize = 1;
+		switch (hittype)
+		{
+			case TRACE_HitActor:
+			case TRACE_HitWall:
+				puffsize = puffdefs.radius;
+				break;
+			case TRACE_HitCeiling:
+				puffsize = puffdefs.height;
+				break;
+		}
+		Vector3 puffpos = GetNormalFromTracer(collision.results, distance: puffsize, fromEnd: true);
 		A_Stop();
 		if (hitType == TRACE_HitActor && collision.projectileVictim)
 		{
@@ -124,10 +138,10 @@ class NMH_HitscanReplacer : Actor
 				puffFlags |= PF_HITTHINGBLEED;
 			}
 			let puff = SpawnPuff(nmh_pufftype,
-				pos: pos,
+				pos: puffpos,
 				hitdir: pAngles.x,
 				particledir: pAngles.x + 180,
-				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				updown: puffdefs.vel.z,
 				flags: puffFlags,
 				victim: victim
 			);
@@ -151,7 +165,7 @@ class NMH_HitscanReplacer : Actor
 			// Spawn blood decals:
 			if (!victim.bNOBLOOD && !victim.bDORMANT)
 			{
-				victim.SpawnBlood(puff? puff.pos : pos, pAngles.x + 180, dealtDamage);
+				victim.SpawnBlood(puffpos, pAngles.x + 180, dealtDamage);
 				victim.TraceBleedAngle(dealtDamage, pAngles.x, pAngles.y);
 				if (puff && !puff.bPUFFONACTORS)
 				{
@@ -174,10 +188,10 @@ class NMH_HitscanReplacer : Actor
 		case TRACE_HitFloor:
 			name decaltype;
 			let puff = SpawnPuff(nmh_pufftype,
-				pos: pos,
+				pos: puffpos,
 				hitdir: pAngles.x,
 				particledir: pAngles.x + 180,
-				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				updown: puffdefs.vel.z,
 				flags: 0
 			);
 			if (puff)
@@ -197,15 +211,50 @@ class NMH_HitscanReplacer : Actor
 			break;
 		case TRACE_HasHitSky:
 			SpawnPuff(nmh_pufftype,
-				pos: pos,
+				pos: puffpos,
 				hitdir: pAngles.x,
 				particledir: pAngles.x + 180,
-				updown: GetDefaultByType(nmh_pufftype).vel.z,
+				updown: puffdefs.vel.z,
 				flags: PF_HITSKY
 			);
 			SetStateLabel("Null");
 			break;
 		}
+	}
+
+	Vector3 GetNormalFromTracer(TraceResults results, double distance = 1, bool fromEnd = false)
+	{
+		let hittype = results.hittype;
+		vector3 hitnormal = -results.HitVector;
+		if (hittype == TRACE_HitFloor)
+		{
+			if (results.ffloor) 
+				hitnormal = -results.ffloor.top.Normal;
+			else 
+				hitnormal = results.HitSector.floorplane.Normal;
+		}
+		else if (hittype == TRACE_HitCeiling)
+		{
+			if (results.ffloor) 
+				hitnormal = -results.ffloor.bottom.Normal;
+			else 
+				hitnormal = results.HitSector.ceilingplane.Normal;
+		}
+		else if (hittype == TRACE_HitWall && results.HitLine)
+		{
+			hitnormal.xy = (-results.HitLine.delta.y, results.HitLine.delta.x).Unit();
+			if (results.Side == Line.front)
+			{
+				hitnormal.xy *= -1;
+			}
+			hitnormal.z = 0;
+		}
+		hitnormal *= distance;
+		if (fromEnd)
+		{
+			return level.Vec3Offset(results.HitPos, hitnormal);
+		}
+		return hitnormal;
 	}
 
 	override void PostBeginPlay()
